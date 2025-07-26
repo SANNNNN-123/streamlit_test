@@ -1,0 +1,15 @@
+# setuptools
+# distutils
+# opencv-python==4.5.3.56
+# dlib==19.22.0
+# numpy==1.21.2
+# scipy==1.7.1
+# pygame==2.0.1
+
+
+opencv-python-headless
+pydub==0.25.1
+streamlit-webrtc>=0.61.3
+twilio~=9.4.3
+matplotlib
+streamlit_session_memo
