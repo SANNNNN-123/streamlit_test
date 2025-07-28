@@ -3,6 +3,8 @@
 import logging
 from pathlib import Path
 from typing import List
+import os
+from twilio.rest import Client
 
 import av
 import numpy as np
@@ -19,6 +21,11 @@ ROOT = HERE
 
 logger = logging.getLogger(__name__)
 
+account_sid = os.environ['TWILIO_ACCOUNT_SID']
+auth_token = os.environ['TWILIO_AUTH_TOKEN']
+client = Client(account_sid, auth_token)
+
+token = client.tokens.create()
 
 def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
     """Basic video frame callback that just returns the frame as is."""
@@ -29,11 +36,12 @@ def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
     
     return av.VideoFrame.from_ndarray(image, format="bgr24")
 
+#rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
 
 webrtc_ctx = webrtc_streamer(
     key="webcam",
     mode=WebRtcMode.SENDRECV,
-    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+    rtc_configuration={"iceServers": token.ice_servers},
     video_frame_callback=video_frame_callback,
     media_stream_constraints={"video": True, "audio": False},
     async_processing=True,
