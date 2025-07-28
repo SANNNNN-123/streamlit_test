@@ -1,4 +1,12 @@
-"""Basic webcam demo with Streamlit WebRTC."""
+"""
+Basic webcam demo with Streamlit WebRTC.
+
+To run this, you need to have a Twilio account and 
+set the TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN .env
+
+https://github.com/whitphx/streamlit-webrtc#configure-the-turn-server-if-necessary
+"""
+
 
 import logging
 from pathlib import Path
