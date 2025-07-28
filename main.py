@@ -7,6 +7,10 @@ set the TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN .env
 https://github.com/whitphx/streamlit-webrtc#configure-the-turn-server-if-necessary
 """
 
+#Sign up account on twilio
+#Go to https://console.twilio.com/
+#Get the account sid and auth token under Account info
+#Paste into .env
 
 import logging
 from pathlib import Path
