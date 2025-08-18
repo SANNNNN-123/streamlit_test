@@ -16,11 +16,15 @@ import logging
 from pathlib import Path
 from typing import List
 import os
+from dotenv import load_dotenv
 from twilio.rest import Client
+
+# Load environment variables from .env file
+load_dotenv()
 
 import av
 import numpy as np
-import streamlit as st
+import main as st
 from streamlit_webrtc import (
     WebRtcMode,
     webrtc_streamer,
