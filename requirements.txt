@@ -1,12 +1,9 @@
 opencv-python-headless==4.8.1.78
 opencv-contrib-python-headless==4.8.1.78
-pydub==0.25.1
 streamlit-webrtc>=0.61.3
 twilio~=9.4.3
-matplotlib
 streamlit_session_memo
 python-dotenv
-pygame
 mediapipe
 scipy
 numpy
