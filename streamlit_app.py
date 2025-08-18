@@ -24,8 +24,9 @@ from streamlit_webrtc import (
 import aiortc
 from twilio.rest import Client
 from dotenv import load_dotenv
-import pygame
 import threading
+import streamlit.components.v1 as components
+import base64
 
 #https://github.com/veb-101/Drowsiness-Detection-Using-Mediapipe-Streamlit
 
@@ -40,9 +41,75 @@ detection_running = False
 drowsiness_detected = False
 ear_value = 0.0
 audio_playing = False
+browser_audio_enabled = True
 
-# Initialize pygame mixer for audio
-pygame.mixer.init()
+# Check if we're running on cloud (no pygame available)
+try:
+    import pygame
+    pygame.mixer.init()
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
+    st.warning("🌐 Running in cloud mode - using browser-based audio alerts")
+
+def get_audio_base64(audio_file_path):
+    """Convert audio file to base64 for browser playback"""
+    try:
+        with open(audio_file_path, "rb") as audio_file:
+            audio_bytes = audio_file.read()
+            audio_base64 = base64.b64encode(audio_bytes).decode()
+            return audio_base64
+    except Exception as e:
+        st.error(f"Error encoding audio file: {e}")
+        return None
+
+def play_browser_audio():
+    """Play audio using HTML5 Audio API in browser"""
+    audio_path = os.path.join("audio", "wake_up.wav")
+    
+    if os.path.exists(audio_path):
+        audio_base64 = get_audio_base64(audio_path)
+        if audio_base64:
+            # Create HTML5 audio player that auto-plays
+            audio_html = f"""
+            <audio id="drowsiness-alert" autoplay>
+                <source src="data:audio/wav;base64,{audio_base64}" type="audio/wav">
+                Your browser does not support the audio element.
+            </audio>
+            <script>
+                document.getElementById('drowsiness-alert').play().catch(function(error) {{
+                    console.log('Audio autoplay was prevented:', error);
+                }});
+            </script>
+            """
+            components.html(audio_html, height=0)
+    else:
+        # Fallback to beep sound using Web Audio API
+        beep_html = """
+        <script>
+        function playBeep() {
+            if (typeof(AudioContext) !== "undefined" || typeof(webkitAudioContext) !== "undefined") {
+                var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                var oscillator = audioCtx.createOscillator();
+                var gainNode = audioCtx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                oscillator.frequency.value = 800; // 800 Hz frequency
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+                
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 1);
+            }
+        }
+        playBeep();
+        </script>
+        """
+        components.html(beep_html, height=0)
 
 def play_wake_up_sound():
     """Play the wake up sound when drowsiness is detected"""
@@ -53,22 +120,29 @@ def play_wake_up_sound():
     
     try:
         audio_playing = True
-        audio_path = os.path.join("audio", "wake_up.wav")
         
-        if os.path.exists(audio_path):
-            pygame.mixer.music.load(audio_path)
-            pygame.mixer.music.play()
-            
-            # Reset audio_playing flag after a short delay
-            def reset_audio_flag():
-                time.sleep(2)  # Adjust based on audio length
-                global audio_playing
-                audio_playing = False
-            
-            # Run in separate thread to avoid blocking
-            threading.Thread(target=reset_audio_flag, daemon=True).start()
+        if PYGAME_AVAILABLE:
+            # Use pygame for local development
+            audio_path = os.path.join("audio", "wake_up.wav")
+            if os.path.exists(audio_path):
+                pygame.mixer.music.load(audio_path)
+                pygame.mixer.music.play()
+            else:
+                st.warning(f"Audio file not found: {audio_path}")
         else:
-            st.warning(f"Audio file not found: {audio_path}")
+            # Use browser-based audio for cloud deployment
+            if browser_audio_enabled:
+                play_browser_audio()
+        
+        # Reset audio_playing flag after a short delay
+        def reset_audio_flag():
+            time.sleep(2)  # Adjust based on audio length
+            global audio_playing
+            audio_playing = False
+        
+        # Run in separate thread to avoid blocking
+        threading.Thread(target=reset_audio_flag, daemon=True).start()
+        
     except Exception as e:
         st.error(f"Error playing audio: {e}")
         audio_playing = False
@@ -305,6 +379,25 @@ def main():
     # Sidebar controls
     st.sidebar.header("Controls")
     
+    # Audio settings
+    st.sidebar.subheader("🔊 Audio Settings")
+    global browser_audio_enabled
+    if not PYGAME_AVAILABLE:
+        browser_audio_enabled = st.sidebar.checkbox("Enable Browser Audio Alerts", value=True, 
+                                                   help="Uses HTML5 Audio API for drowsiness alerts")
+        if browser_audio_enabled:
+            st.sidebar.info("🌐 Using browser-based audio (HTML5 + Web Audio API)")
+        else:
+            st.sidebar.warning("🔇 Audio alerts disabled - only visual alerts will be shown")
+    else:
+        st.sidebar.success("🎵 Using Pygame audio (local mode)")
+        browser_audio_enabled = True
+    
+    # Audio test button
+    if st.sidebar.button("🔊 Test Audio Alert"):
+        play_wake_up_sound()
+        st.sidebar.success("Audio test played!")
+    
     # Twilio setup instructions
     if not ice_servers:
         st.sidebar.subheader("🔧 Twilio Setup")
@@ -370,7 +463,15 @@ def main():
             
             # Update status based on global variables
             if drowsiness_detected:
-                status_placeholder.error("⚠️ DROWSINESS DETECTED!")
+                status_placeholder.error("🚨 DROWSINESS DETECTED! 🚨")
+                # Additional visual alert with balloons
+                st.balloons()
+                # Large warning message
+                st.markdown("""
+                <div style='background-color: #ff4b4b; color: white; padding: 20px; border-radius: 10px; text-align: center; font-size: 20px; font-weight: bold; margin: 10px 0;'>
+                    ⚠️ WAKE UP! DROWSINESS DETECTED! ⚠️
+                </div>
+                """, unsafe_allow_html=True)
             else:
                 status_placeholder.success("✅ Awake and Alert")
             
@@ -386,25 +487,47 @@ def main():
             st.info("Status will appear here when detection is running.")
         
         st.markdown("### Advantages of WebRTC + MediaPipe:")
-        st.markdown("""
-        - ✅ **Better webcam integration**
-        - ✅ **Real-time processing**
-        - ✅ **Lower latency**
-        - ✅ **Easy deployment**
-        - ✅ **Works in browsers**
-        - ✅ **Audio alerts** (wake_up.wav)
-        - ✅ **Twilio TURN servers** (if configured)
-        """)
+        features_list = [
+            "✅ **Better webcam integration**",
+            "✅ **Real-time processing**", 
+            "✅ **Lower latency**",
+            "✅ **Easy deployment**",
+            "✅ **Works in browsers**",
+            "✅ **Cross-platform audio alerts**",
+            "✅ **Visual + Audio notifications**",
+            "✅ **Twilio TURN servers** (if configured)"
+        ]
+        
+        if PYGAME_AVAILABLE:
+            features_list.append("🎵 **Pygame audio** (local mode)")
+        else:
+            features_list.extend([
+                "🌐 **HTML5 Audio API** (cloud mode)",
+                "🔊 **Web Audio API fallback**",
+                "🎨 **Enhanced visual alerts**"
+            ])
+        
+        st.markdown("\n".join(features_list))
         
         st.markdown("### How it works:")
-        st.markdown("""
-        - **Eye Aspect Ratio (EAR)**: Measures eye openness
-        - **Threshold**: Adjustable sensitivity
-        - **Consecutive Frames**: Configurable alert delay
-        - **Real-time**: Continuous monitoring
-        - **Audio Alert**: Plays wake_up.wav on detection
-        - **Twilio**: Enhanced WebRTC connectivity
-        """)
+        how_it_works = [
+            "- **Eye Aspect Ratio (EAR)**: Measures eye openness",
+            "- **Threshold**: Adjustable sensitivity",
+            "- **Consecutive Frames**: Configurable alert delay", 
+            "- **Real-time**: Continuous monitoring",
+            "- **Twilio**: Enhanced WebRTC connectivity"
+        ]
+        
+        if PYGAME_AVAILABLE:
+            how_it_works.append("- **Audio Alert**: Plays wake_up.wav using Pygame")
+        else:
+            how_it_works.extend([
+                "- **Browser Audio**: HTML5 Audio API with base64 encoding",
+                "- **Fallback Beep**: Web Audio API generated tones", 
+                "- **Visual Alerts**: Red flash, balloons, and warning messages"
+            ])
+        
+        st.markdown("\n".join(how_it_works))
     
     # Footer
     st.markdown("---")
