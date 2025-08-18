@@ -1,11 +1,20 @@
 import streamlit as st
-import cv2
+import os
+# Set OpenCV environment variables before importing cv2
+os.environ['OPENCV_VIDEOIO_PRIORITY_MSMF'] = '0'
+os.environ['OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS'] = '0'
+
+try:
+    import cv2
+except ImportError as e:
+    st.error(f"OpenCV import error: {e}")
+    st.stop()
+
 import mediapipe as mp
 import numpy as np
 from scipy.spatial import distance
 import time
 import logging
-import os
 import av
 from streamlit_webrtc import (
     WebRtcMode,
